@@ -1,3 +1,6 @@
 "ENABLED" = "Show copy video URL with TimeStamp button";
 "POSITION" = "Copy video URL with TimeStamp button position";
 "URL_COPIED" = "Video URL copied to clipboard";
+"URL_COPIED_NO_TIMESTAMP" = "Video URL copied to clipboard (without timestamp)";
+"YouTimeStamp-HoldToCopyWithoutTimestamp_KEY" = "Hold to copy without timestamp";
+"YouTimeStamp-HoldToCopyWithoutTimestamp_KEY_DESC" = "Hold the timestamp button to copy the video URL without the timestamp";

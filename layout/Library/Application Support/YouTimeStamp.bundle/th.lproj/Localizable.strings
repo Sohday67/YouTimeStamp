@@ -1,3 +1,6 @@
 "ENABLED" = "แสดงปุ่มคัดลอกลิงค์พร้อมเวลาวิดีโอ";
 "POSITION" = "ตำแหน่งปุ่มคัดลอกลิงค์พร้อมเวลาวิดีโอ";
 "URL_COPIED" = "คัดลอก URL วิดีโอไปยังคลิปบอร์ดแล้ว";
+"URL_COPIED_NO_TIMESTAMP" = "คัดลอก URL วิดีโอไปยังคลิปบอร์ดแล้ว (ไม่มีเวลา)";
+"YouTimeStamp-HoldToCopyWithoutTimestamp_KEY" = "กดค้างเพื่อคัดลอกโดยไม่มีเวลา";
+"YouTimeStamp-HoldToCopyWithoutTimestamp_KEY_DESC" = "กดค้างปุ่มเวลาเพื่อคัดลอก URL วิดีโอโดยไม่มีเวลา";

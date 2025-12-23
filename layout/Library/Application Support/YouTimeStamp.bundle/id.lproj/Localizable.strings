@@ -1,3 +1,6 @@
 "ENABLED" = "Tampilkan Salin URL Video dengan Tombol Stempel Waktu";
 "POSITION" = "Salin URL Video dengan Posisi tombol TimeStamp";
 "URL_COPIED" = "URL telah disalin ke papan klip";
+"URL_COPIED_NO_TIMESTAMP" = "URL telah disalin ke papan klip (tanpa stempel waktu)";
+"YouTimeStamp-HoldToCopyWithoutTimestamp_KEY" = "Tahan untuk menyalin tanpa stempel waktu";
+"YouTimeStamp-HoldToCopyWithoutTimestamp_KEY_DESC" = "Tahan tombol stempel waktu untuk menyalin URL video tanpa stempel waktu";

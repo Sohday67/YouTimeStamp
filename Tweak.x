@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <AVFoundation/AVFoundation.h>
 #import <AVKit/AVKit.h>
+#import <UIKit/UIKit.h>
 
 #import "../YTVideoOverlay/Header.h"
 #import "../YTVideoOverlay/Init.x"
@@ -12,6 +13,7 @@
 #import <YouTubeHeader/YTPlayerViewController.h>
 
 #define TweakKey @"YouTimeStamp"
+#define HoldToCopyWithoutTimestampKey @"YouTimeStamp-HoldToCopyWithoutTimestamp"
 
 @interface YTMainAppVideoPlayerOverlayViewController (YouTimeStamp)
 @property (nonatomic, assign) YTPlayerViewController *parentViewController;
@@ -25,11 +27,13 @@
 @property (nonatomic, assign) CGFloat currentVideoMediaTime;
 @property (nonatomic, assign) NSString *currentVideoID;
 - (void)didPressYouTimeStamp;
+- (void)didLongPressYouTimeStamp;
 @end
 
 @interface YTMainAppControlsOverlayView (YouTimeStamp)
 @property (nonatomic, assign) YTPlayerViewController *playerViewController;
 - (void)didPressYouTimeStamp:(id)arg;
+- (void)didLongPressYouTimeStamp:(UILongPressGestureRecognizer *)gesture;
 @end
 
 @interface YTInlinePlayerBarController : NSObject
@@ -38,6 +42,7 @@
 @interface YTInlinePlayerBarContainerView (YouTimeStamp)
 @property (nonatomic, strong) YTInlinePlayerBarController *delegate;
 - (void)didPressYouTimeStamp:(id)arg;
+- (void)didLongPressYouTimeStamp:(UILongPressGestureRecognizer *)gesture;
 @end
 
 
@@ -72,6 +77,14 @@ NSBundle *YouTimeStampBundle() {
 
 static UIImage *timestampImage(NSString *qualityLabel) {
     return [%c(QTMIcon) tintImage:[UIImage imageNamed:[NSString stringWithFormat:@"Timestamp@%@", qualityLabel] inBundle: YouTimeStampBundle() compatibleWithTraitCollection:nil] color:[%c(YTColor) white1]];
+}
+
+static void addLongPressGestureToButton(YTQTMButton *button, id target, SEL selector) {
+    if (button && [[NSUserDefaults standardUserDefaults] boolForKey:HoldToCopyWithoutTimestampKey]) {
+        UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:target action:selector];
+        longPress.minimumPressDuration = 0.5;
+        [button addGestureRecognizer:longPress];
+    }
 }
 
 %group Main
@@ -110,6 +123,34 @@ static UIImage *timestampImage(NSString *qualityLabel) {
         NSLog(@"[YouTimeStamp] No video ID available");
     }
 }
+
+// New method to copy the URL without the timestamp to the clipboard
+%new
+- (void)didLongPressYouTimeStamp {
+    // Create a link using only the video ID (no timestamp)
+    if (self.currentVideoID) {
+        NSString *videoURL = [NSString stringWithFormat:@"https://youtu.be/%@", self.currentVideoID];
+        
+        // Copy the link to clipboard
+        UIPasteboard *pasteboard = [UIPasteboard generalPasteboard];
+        [pasteboard setString:videoURL];
+        // Load localized string
+        NSBundle *bundle = YouTimeStampBundle();
+        NSString *msg = NSLocalizedStringFromTableInBundle(
+            @"URL_COPIED_NO_TIMESTAMP",
+            nil,
+            bundle ?: [NSBundle mainBundle],
+            @"Message when URL is copied without timestamp"
+        );
+
+        // Show snackbar
+        [[%c(GOOHUDManagerInternal) sharedInstance]
+            showMessageMainThread:[%c(YTHUDMessage) messageWithText:msg]];
+
+    } else {
+        NSLog(@"[YouTimeStamp] No video ID available");
+    }
+}
 %end
 %end
 
@@ -118,6 +159,22 @@ static UIImage *timestampImage(NSString *qualityLabel) {
   */
 %group Top
 %hook YTMainAppControlsOverlayView
+
+- (id)initWithDelegate:(id)delegate {
+    self = %orig;
+    if (self) {
+        addLongPressGestureToButton(self.overlayButtons[TweakKey], self, @selector(didLongPressYouTimeStamp:));
+    }
+    return self;
+}
+
+- (id)initWithDelegate:(id)delegate autoplaySwitchEnabled:(BOOL)autoplaySwitchEnabled {
+    self = %orig;
+    if (self) {
+        addLongPressGestureToButton(self.overlayButtons[TweakKey], self, @selector(didLongPressYouTimeStamp:));
+    }
+    return self;
+}
 
 - (UIImage *)buttonImage:(NSString *)tweakId {
     return [tweakId isEqualToString:TweakKey] ? timestampImage(@"3") : %orig;
@@ -136,6 +193,19 @@ static UIImage *timestampImage(NSString *qualityLabel) {
     }
 }
 
+// Custom method to handle long press on the timestamp button
+%new(v@:@)
+- (void)didLongPressYouTimeStamp:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        YTMainAppVideoPlayerOverlayView *mainOverlayView = (YTMainAppVideoPlayerOverlayView *)self.superview;
+        YTMainAppVideoPlayerOverlayViewController *mainOverlayController = (YTMainAppVideoPlayerOverlayViewController *)mainOverlayView.delegate;
+        YTPlayerViewController *playerViewController = mainOverlayController.parentViewController;
+        if (playerViewController) {
+            [playerViewController didLongPressYouTimeStamp];
+        }
+    }
+}
+
 %end
 %end
 
@@ -144,6 +214,14 @@ static UIImage *timestampImage(NSString *qualityLabel) {
   */
 %group Bottom
 %hook YTInlinePlayerBarContainerView
+
+- (id)init {
+    self = %orig;
+    if (self) {
+        addLongPressGestureToButton(self.overlayButtons[TweakKey], self, @selector(didLongPressYouTimeStamp:));
+    }
+    return self;
+}
 
 - (UIImage *)buttonImage:(NSString *)tweakId {
     return [tweakId isEqualToString:TweakKey] ? timestampImage(@"3") : %orig;
@@ -162,13 +240,33 @@ static UIImage *timestampImage(NSString *qualityLabel) {
     }
 }
 
+// Custom method to handle long press on the timestamp button
+%new(v@:@)
+- (void)didLongPressYouTimeStamp:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        YTInlinePlayerBarController *delegate = self.delegate;
+        YTMainAppVideoPlayerOverlayViewController *_delegate = [delegate valueForKey:@"_delegate"];
+        YTPlayerViewController *parentViewController = _delegate.parentViewController;
+        if (parentViewController) {
+            [parentViewController didLongPressYouTimeStamp];
+        }
+    }
+}
+
 %end
 %end
 
 %ctor {
+    // Set default value for HoldToCopyWithoutTimestamp if not already set
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if ([defaults objectForKey:HoldToCopyWithoutTimestampKey] == nil) {
+        [defaults setBool:YES forKey:HoldToCopyWithoutTimestampKey];
+    }
+    
     initYTVideoOverlay(TweakKey, @{
         AccessibilityLabelKey: @"Copy Timestamp",
         SelectorKey: @"didPressYouTimeStamp:",
+        ExtraBooleanKeys: @[HoldToCopyWithoutTimestampKey],
     });
     %init(Main);
     %init(Top);
