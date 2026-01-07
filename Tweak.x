@@ -3,20 +3,17 @@
 #import <AVKit/AVKit.h>
 #import <UIKit/UIKit.h>
 
-#import "YTVideoOverlay/Header.h"
-#import "YTVideoOverlay/Init.x"
+#import "../YTVideoOverlay/Header.h"
+#import "../YTVideoOverlay/Init.x"
 #import <YouTubeHeader/YTColor.h>
 #import <YouTubeHeader/QTMIcon.h>
 #import <YouTubeHeader/YTMainAppVideoPlayerOverlayViewController.h>
 #import <YouTubeHeader/YTMainAppVideoPlayerOverlayView.h>
 #import <YouTubeHeader/YTMainAppControlsOverlayView.h>
 #import <YouTubeHeader/YTPlayerViewController.h>
-#import <YouTubeHeader/YTSettingsSectionItem.h>
-#import <YouTubeHeader/YTSettingsViewController.h>
 
 #define TweakKey @"YouTimeStamp"
 #define HoldToCopyWithoutTimestampKey @"YouTimeStamp-HoldToCopyWithoutTimestamp"
-static const NSInteger YTVideoOverlaySection = 1222;
 
 @interface YTMainAppVideoPlayerOverlayViewController (YouTimeStamp)
 @property (nonatomic, assign) YTPlayerViewController *parentViewController;
@@ -46,11 +43,6 @@ static const NSInteger YTVideoOverlaySection = 1222;
 @property (nonatomic, strong) YTInlinePlayerBarController *delegate;
 - (void)didPressYouTimeStamp:(id)arg;
 - (void)didLongPressYouTimeStamp:(UILongPressGestureRecognizer *)gesture;
-@end
-
-// YTSettingsSectionItem interface for accessing title
-@interface YTSettingsSectionItem (YouTimeStamp)
-@property (nonatomic, strong, readonly) NSString *title;
 @end
 
 
@@ -264,104 +256,6 @@ static void addLongPressGestureToButton(YTQTMButton *button, id target, SEL sele
 %end
 %end
 
-/**
-  * Hooks YTSettingsViewController to reorder settings items for YouTimeStamp
-  * This moves the "Hold to copy without timestamp" setting above the "Order" setting
-  */
-// Helper function to get localized string for YouTimeStamp bundle
-static NSString *getYouTimeStampLocalizedString(NSString *key) {
-    NSBundle *bundle = YouTimeStampBundle();
-    return [bundle localizedStringForKey:key value:nil table:nil];
-}
-
-// Helper function to get item title from YTSettingsSectionItem
-// Tries _title first, then title property, with error handling
-static NSString *getItemTitle(id item) {
-    @try {
-        // First try the private _title property
-        NSString *title = [item valueForKey:@"_title"];
-        if (title) return title;
-    } @catch (NSException *exception) {
-        // If _title doesn't exist, try the public title property
-    }
-    @try {
-        NSString *title = [item valueForKey:@"title"];
-        if (title) return title;
-    } @catch (NSException *exception) {
-        // Property doesn't exist
-    }
-    return nil;
-}
-
-// Helper function to reorder settings items for YouTimeStamp section
-// Swaps the Order and Hold to copy settings so Hold to copy appears first
-static NSArray *reorderYouTimeStampSettings(NSArray *items) {
-    if (items.count == 0) return items;
-    
-    NSMutableArray *mutableItems = [items mutableCopy];
-    
-    // Find YouTimeStamp header, Order item, and Hold to copy item indices
-    NSInteger youTimeStampHeaderIndex = -1;
-    NSInteger orderItemIndex = -1;
-    NSInteger holdToCopyIndex = -1;
-    
-    // Get localized strings for Hold to copy setting
-    NSString *holdToCopyTitle = getYouTimeStampLocalizedString(@"YouTimeStamp-HoldToCopyWithoutTimestamp_KEY");
-    
-    for (NSUInteger i = 0; i < mutableItems.count; i++) {
-        id item = mutableItems[i];
-        NSString *itemTitle = getItemTitle(item);
-        if (!itemTitle) continue;
-        
-        // Find YouTimeStamp header
-        if ([itemTitle isEqualToString:TweakKey]) {
-            youTimeStampHeaderIndex = i;
-        }
-        // Find Order item (only within YouTimeStamp section)
-        else if (youTimeStampHeaderIndex >= 0 && orderItemIndex < 0 && [itemTitle isEqualToString:@"Order"]) {
-            orderItemIndex = i;
-        }
-        // Find Hold to copy item (by checking if title matches)
-        else if (youTimeStampHeaderIndex >= 0 && holdToCopyIndex < 0 && holdToCopyTitle && [itemTitle isEqualToString:holdToCopyTitle]) {
-            holdToCopyIndex = i;
-        }
-    }
-    
-    // If we found both Order and Hold to copy items within YouTimeStamp section,
-    // and Hold to copy is after Order, swap them
-    if (orderItemIndex >= 0 && holdToCopyIndex >= 0 && holdToCopyIndex > orderItemIndex) {
-        id orderItem = mutableItems[orderItemIndex];
-        id holdToCopyItem = mutableItems[holdToCopyIndex];
-        mutableItems[orderItemIndex] = holdToCopyItem;
-        mutableItems[holdToCopyIndex] = orderItem;
-        return [mutableItems copy];
-    }
-    
-    return items;
-}
-
-%group Settings
-%hook YTSettingsViewController
-
-// Hook for newer YouTube versions with icon parameter
-- (void)setSectionItems:(NSArray *)items forCategory:(NSUInteger)category title:(NSString *)title icon:(id)icon titleDescription:(NSString *)titleDescription headerHidden:(BOOL)headerHidden {
-    if (category == YTVideoOverlaySection) {
-        items = reorderYouTimeStampSettings(items);
-    }
-    %orig(items, category, title, icon, titleDescription, headerHidden);
-}
-
-// Hook for older YouTube versions without icon parameter
-- (void)setSectionItems:(NSArray *)items forCategory:(NSUInteger)category title:(NSString *)title titleDescription:(NSString *)titleDescription headerHidden:(BOOL)headerHidden {
-    if (category == YTVideoOverlaySection) {
-        items = reorderYouTimeStampSettings(items);
-    }
-    %orig(items, category, title, titleDescription, headerHidden);
-}
-
-%end
-%end
-
 %ctor {
     // Set default value for HoldToCopyWithoutTimestamp if not already set
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -377,5 +271,4 @@ static NSArray *reorderYouTimeStampSettings(NSArray *items) {
     %init(Main);
     %init(Top);
     %init(Bottom);
-    %init(Settings);
 }
