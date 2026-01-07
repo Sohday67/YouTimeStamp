@@ -278,9 +278,16 @@ static NSArray *reorderYouTimeStampSettings(NSArray *items) {
     if (!items || items.count == 0) return items;
     
     NSMutableArray *mutableItems = [items mutableCopy];
-    NSBundle *tweakBundle = [[NSBundle mainBundle] pathForResource:@"YTVideoOverlay" ofType:@"bundle"] 
-        ? [NSBundle bundleWithPath:[[NSBundle mainBundle] pathForResource:@"YTVideoOverlay" ofType:@"bundle"]]
+    
+    // Load the YTVideoOverlay bundle to get the localized "ORDER" title
+    NSString *bundlePath = [[NSBundle mainBundle] pathForResource:@"YTVideoOverlay" ofType:@"bundle"];
+    NSBundle *tweakBundle = bundlePath 
+        ? [NSBundle bundleWithPath:bundlePath]
         : [NSBundle bundleWithPath:[NSString stringWithFormat:ROOT_PATH_NS(@"/Library/Application Support/YTVideoOverlay.bundle")]];
+    
+    // If bundle not found, return items unchanged
+    if (!tweakBundle) return items;
+    
     NSString *orderTitle = [tweakBundle localizedStringForKey:OrderSettingTitle value:nil table:nil];
     
     // Find the YouTimeStamp section and reorder its items
@@ -290,14 +297,15 @@ static NSArray *reorderYouTimeStampSettings(NSArray *items) {
     NSInteger nextSectionIndex = mutableItems.count; // Default to end if no next section
     
     // Find YouTimeStamp header and the next section header
+    // Section headers in YTVideoOverlay are identified by having isEnabled=NO
     for (NSInteger i = 0; i < mutableItems.count; i++) {
         id item = mutableItems[i];
         if ([item respondsToSelector:@selector(title)]) {
             NSString *title = [item title];
             if ([title isEqualToString:TweakKey]) {
                 youTimeStampHeaderIndex = i;
-            } else if (youTimeStampHeaderIndex >= 0 && ![item isEnabled]) {
-                // Found the next section header (disabled items are headers)
+            } else if (youTimeStampHeaderIndex >= 0 && [item respondsToSelector:@selector(isEnabled)] && ![item isEnabled]) {
+                // Found the next section header (disabled items are headers in YTVideoOverlay)
                 nextSectionIndex = i;
                 break;
             }
