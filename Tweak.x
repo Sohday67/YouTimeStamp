@@ -11,6 +11,7 @@
 #import <YouTubeHeader/YTMainAppVideoPlayerOverlayView.h>
 #import <YouTubeHeader/YTMainAppControlsOverlayView.h>
 #import <YouTubeHeader/YTPlayerViewController.h>
+#import <YouTubeHeader/YTSettingsViewController.h>
 
 #define TweakKey @"YouTimeStamp"
 #define HoldToCopyWithoutTimestampKey @"YouTimeStamp-HoldToCopyWithoutTimestamp"
@@ -256,6 +257,61 @@ static void addLongPressGestureToButton(YTQTMButton *button, id target, SEL sele
 %end
 %end
 
+%group Settings
+%hook YTSettingsViewController
+
+// YTVideoOverlay section category ID
+static const NSUInteger YTVideoOverlaySectionCategory = 1222;
+
+static inline void reorderSettingsItems(NSMutableArray *sectionItems) {
+    NSBundle *bundle = YouTimeStampBundle();
+    NSString *holdToCopyText = [bundle localizedStringForKey:@"YouTimeStamp-HoldToCopyWithoutTimestamp_KEY" value:nil table:nil];
+    
+    // Find the HoldToCopy item and the Order item that precedes it in the YouTimeStamp section
+    NSInteger holdToCopyIndex = -1;
+    NSInteger orderIndex = -1;
+    
+    for (NSInteger i = 0; i < sectionItems.count; i++) {
+        id item = sectionItems[i];
+        NSString *itemTitle = [item valueForKey:@"_title"];
+        if ([itemTitle isEqualToString:holdToCopyText]) {
+            holdToCopyIndex = i;
+            // Find the Order item that should be right before this (within same section)
+            for (NSInteger j = i - 1; j >= 0; j--) {
+                id prevItem = sectionItems[j];
+                NSString *prevTitle = [prevItem valueForKey:@"_title"];
+                if ([prevTitle isEqualToString:@"Order"]) {
+                    orderIndex = j;
+                    break;
+                }
+                // Stop if we hit a header (section separator)
+                if ([prevTitle isEqualToString:TweakKey]) {
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    
+    // Swap if both found and Order is before HoldToCopy
+    if (orderIndex >= 0 && holdToCopyIndex >= 0 && orderIndex < holdToCopyIndex) {
+        [sectionItems exchangeObjectAtIndex:orderIndex withObjectAtIndex:holdToCopyIndex];
+    }
+}
+
+- (void)setSectionItems:(NSMutableArray *)sectionItems forCategory:(NSUInteger)category title:(NSString *)title titleDescription:(NSString *)titleDescription headerHidden:(BOOL)headerHidden {
+    if (category == YTVideoOverlaySectionCategory) reorderSettingsItems(sectionItems);
+    %orig;
+}
+
+- (void)setSectionItems:(NSMutableArray *)sectionItems forCategory:(NSUInteger)category title:(NSString *)title icon:(id)icon titleDescription:(NSString *)titleDescription headerHidden:(BOOL)headerHidden {
+    if (category == YTVideoOverlaySectionCategory) reorderSettingsItems(sectionItems);
+    %orig;
+}
+
+%end
+%end
+
 %ctor {
     // Set default value for HoldToCopyWithoutTimestamp if not already set
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -271,4 +327,5 @@ static void addLongPressGestureToButton(YTQTMButton *button, id target, SEL sele
     %init(Main);
     %init(Top);
     %init(Bottom);
+    %init(Settings);
 }
