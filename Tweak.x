@@ -3,8 +3,8 @@
 #import <AVKit/AVKit.h>
 #import <UIKit/UIKit.h>
 
-#import "YTVideoOverlay/Header.h"
-#import "YTVideoOverlay/Init.x"
+#import "../YTVideoOverlay/Header.h"
+#import "../YTVideoOverlay/Init.x"
 #import <YouTubeHeader/YTColor.h>
 #import <YouTubeHeader/QTMIcon.h>
 #import <YouTubeHeader/YTMainAppVideoPlayerOverlayViewController.h>
