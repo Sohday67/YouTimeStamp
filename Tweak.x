@@ -279,16 +279,17 @@ static NSArray *reorderYouTimeStampSettings(NSArray *items) {
     
     NSMutableArray *mutableItems = [items mutableCopy];
     
-    // Load the YTVideoOverlay bundle to get the localized "ORDER" title
+    // Load the YTVideoOverlay bundle (not YouTimeStamp bundle) to get the localized "ORDER" title
+    // The ORDER string is defined in YTVideoOverlay's localization, not in YouTimeStamp
     NSString *bundlePath = [[NSBundle mainBundle] pathForResource:@"YTVideoOverlay" ofType:@"bundle"];
-    NSBundle *tweakBundle = bundlePath 
+    NSBundle *ytVideoOverlayBundle = bundlePath 
         ? [NSBundle bundleWithPath:bundlePath]
         : [NSBundle bundleWithPath:[NSString stringWithFormat:ROOT_PATH_NS(@"/Library/Application Support/YTVideoOverlay.bundle")]];
     
-    // If bundle not found, return items unchanged
-    if (!tweakBundle) return items;
+    // If YTVideoOverlay bundle not found, return items unchanged
+    if (!ytVideoOverlayBundle) return items;
     
-    NSString *orderTitle = [tweakBundle localizedStringForKey:OrderSettingTitle value:nil table:nil];
+    NSString *orderTitle = [ytVideoOverlayBundle localizedStringForKey:OrderSettingTitle value:nil table:nil];
     
     // Find the YouTimeStamp section and reorder its items
     // Structure: Header, Enabled, Position, Order, ExtraBooleanKeys...
@@ -327,6 +328,9 @@ static NSArray *reorderYouTimeStampSettings(NSArray *items) {
         }
     }
     
+    // Return unchanged if:
+    // - Order item not found (orderItemIndex < 0), or
+    // - Order item is already the last item in the section (orderItemIndex >= nextSectionIndex - 1)
     if (orderItemIndex < 0 || orderItemIndex >= nextSectionIndex - 1) return items;
     
     // Move Order item to the end of YouTimeStamp section (before next section)
