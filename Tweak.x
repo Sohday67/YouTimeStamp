@@ -11,9 +11,12 @@
 #import <YouTubeHeader/YTMainAppVideoPlayerOverlayView.h>
 #import <YouTubeHeader/YTMainAppControlsOverlayView.h>
 #import <YouTubeHeader/YTPlayerViewController.h>
+#import <YouTubeHeader/YTSettingsSectionItem.h>
+#import <YouTubeHeader/YTSettingsViewController.h>
 
 #define TweakKey @"YouTimeStamp"
 #define HoldToCopyWithoutTimestampKey @"YouTimeStamp-HoldToCopyWithoutTimestamp"
+#define OrderSettingTitle @"ORDER"
 
 @interface YTMainAppVideoPlayerOverlayViewController (YouTimeStamp)
 @property (nonatomic, assign) YTPlayerViewController *parentViewController;
@@ -60,6 +63,21 @@
 @interface GOOHUDManagerInternal : NSObject
 - (void)showMessageMainThread:(id)message;
 + (id)sharedInstance;
+@end
+
+// For settings reordering
+@interface YTIIcon : NSObject
+@property (nonatomic, assign) NSInteger iconType;
+@end
+
+@interface YTSettingsViewController (YouTimeStamp)
+- (void)setSectionItems:(NSArray *)items forCategory:(NSUInteger)category title:(NSString *)title titleDescription:(NSString *)desc headerHidden:(BOOL)hidden;
+- (void)setSectionItems:(NSArray *)items forCategory:(NSUInteger)category title:(NSString *)title icon:(YTIIcon *)icon titleDescription:(NSString *)desc headerHidden:(BOOL)hidden;
+@end
+
+@interface YTSettingsSectionItem (YouTimeStamp)
+- (NSString *)title;
+- (BOOL)isEnabled;
 @end
 
 NSBundle *YouTimeStampBundle() {
@@ -256,6 +274,84 @@ static void addLongPressGestureToButton(YTQTMButton *button, id target, SEL sele
 %end
 %end
 
+static NSArray *reorderYouTimeStampSettings(NSArray *items) {
+    if (!items || items.count == 0) return items;
+    
+    NSMutableArray *mutableItems = [items mutableCopy];
+    NSBundle *tweakBundle = [[NSBundle mainBundle] pathForResource:@"YTVideoOverlay" ofType:@"bundle"] 
+        ? [NSBundle bundleWithPath:[[NSBundle mainBundle] pathForResource:@"YTVideoOverlay" ofType:@"bundle"]]
+        : [NSBundle bundleWithPath:[NSString stringWithFormat:ROOT_PATH_NS(@"/Library/Application Support/YTVideoOverlay.bundle")]];
+    NSString *orderTitle = [tweakBundle localizedStringForKey:OrderSettingTitle value:nil table:nil];
+    
+    // Find the YouTimeStamp section and reorder its items
+    // Structure: Header, Enabled, Position, Order, ExtraBooleanKeys...
+    // We want: Header, Enabled, Position, ExtraBooleanKeys..., Order
+    NSInteger youTimeStampHeaderIndex = -1;
+    NSInteger nextSectionIndex = mutableItems.count; // Default to end if no next section
+    
+    // Find YouTimeStamp header and the next section header
+    for (NSInteger i = 0; i < mutableItems.count; i++) {
+        id item = mutableItems[i];
+        if ([item respondsToSelector:@selector(title)]) {
+            NSString *title = [item title];
+            if ([title isEqualToString:TweakKey]) {
+                youTimeStampHeaderIndex = i;
+            } else if (youTimeStampHeaderIndex >= 0 && ![item isEnabled]) {
+                // Found the next section header (disabled items are headers)
+                nextSectionIndex = i;
+                break;
+            }
+        }
+    }
+    
+    if (youTimeStampHeaderIndex < 0) return items;
+    
+    // Find the Order item within YouTimeStamp section
+    NSInteger orderItemIndex = -1;
+    for (NSInteger i = youTimeStampHeaderIndex + 1; i < nextSectionIndex; i++) {
+        id item = mutableItems[i];
+        if ([item respondsToSelector:@selector(title)]) {
+            NSString *title = [item title];
+            if ([title isEqualToString:orderTitle]) {
+                orderItemIndex = i;
+                break;
+            }
+        }
+    }
+    
+    if (orderItemIndex < 0 || orderItemIndex >= nextSectionIndex - 1) return items;
+    
+    // Move Order item to the end of YouTimeStamp section (before next section)
+    id orderItem = mutableItems[orderItemIndex];
+    [mutableItems removeObjectAtIndex:orderItemIndex];
+    [mutableItems insertObject:orderItem atIndex:nextSectionIndex - 1];
+    
+    return [mutableItems copy];
+}
+
+/**
+  * Reorders settings so that the Order option appears after ExtraBooleanKeys
+  */
+%group Settings
+%hook YTSettingsViewController
+
+- (void)setSectionItems:(NSArray *)items forCategory:(NSUInteger)category title:(NSString *)title titleDescription:(NSString *)desc headerHidden:(BOOL)hidden {
+    if (category == 1222) { // YTVideoOverlay section
+        items = reorderYouTimeStampSettings(items);
+    }
+    %orig(items, category, title, desc, hidden);
+}
+
+- (void)setSectionItems:(NSArray *)items forCategory:(NSUInteger)category title:(NSString *)title icon:(YTIIcon *)icon titleDescription:(NSString *)desc headerHidden:(BOOL)hidden {
+    if (category == 1222) { // YTVideoOverlay section
+        items = reorderYouTimeStampSettings(items);
+    }
+    %orig(items, category, title, icon, desc, hidden);
+}
+
+%end
+%end
+
 %ctor {
     // Set default value for HoldToCopyWithoutTimestamp if not already set
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -271,4 +367,5 @@ static void addLongPressGestureToButton(YTQTMButton *button, id target, SEL sele
     %init(Main);
     %init(Top);
     %init(Bottom);
+    %init(Settings);
 }
